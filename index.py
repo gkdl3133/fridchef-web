@@ -12,7 +12,7 @@ TABLE_NAME = os.environ.get('TABLE_NAME', 'Receipts')
 table = dynamodb.Table(TABLE_NAME)
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-
+# deploy test
 def analyze_receipt_with_ai(bucket, key):
     # S3에서 이미지 읽기
     response = s3.get_object(Bucket=bucket, Key=key)

@@ -5,7 +5,7 @@ import uuid
 
 s3_client = boto3.client('s3')
 BUCKET_NAME = os.environ.get('BUCKET_NAME', 'my-refrigerator-receipts-nonong')
-
+# deploy test
 def lambda_handler(event, context):
     headers = {
         'Access-Control-Allow-Origin': '*',
