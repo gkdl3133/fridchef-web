@@ -1,0 +1,1 @@
+{"LambdaFunctionConfigurations": [{"LambdaFunctionArn": "arn:aws:lambda:ap-northeast-2:494558386342:function:process-receipt-ai", "Events": ["s3:ObjectCreated:*"]}]} 

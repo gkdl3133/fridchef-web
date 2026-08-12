@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>냉장고 영수증 AI 분석 대시보드</title>
+    <link rel="shortcut icon" href="#">
+    <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.1/kakao.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; position: relative; }
+        .auth-bar { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 20px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .user-info { display: flex; align-items: center; gap: 10px; font-weight: bold; }
+        .user-avatar { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
+        .btn-kakao-login { background-color: #FEE500; color: #000000; border: none; padding: 10px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+        .btn-logout { background-color: #e0e0e0; color: #333; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 20px;
+            display: flex;       /* 추가 */
+            align-items: center; /* 추가: 이미지와 글자를 세로 중앙 정렬 */
+            justify-content: center; /* 추가: 가로 중앙 정렬 */
+        }
+        .upload-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; text-align: center; border: 2px dashed #4CAF50; }
+        .upload-card input[type="file"] { display: none; }
+        .file-label { display: inline-block; padding: 10px 20px; background-color: #e8f5e9; color: #2e7d32; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 10px; }
+        .btn-upload { padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-upload:disabled { background-color: #ccc; cursor: not-allowed; }
+        #status-msg { margin-top: 15px; font-weight: bold; color: #1976d2; min-height: 20px; }
+        .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .btn-refresh { padding: 8px 16px; background-color: #2196F3; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .receipt-card { background: white; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .receipt-header { display: flex; justify-content: space-between; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px; }
+        .item-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f0f0f0; gap: 15px; }
+        .item-name-input { border: 1px solid transparent; background: transparent; font-weight: bold; padding: 2px 0; width: 100%; display: block; font-size: 1.15em;}
+        .item-name-input:hover, .item-name-input:focus { border-color: #ccc; background: #fff; outline: none; }
+        .category-tag { color: #888; font-size: 0.75em; display: block; margin-top: 2px; }
+        .qty-btn { background-color: #eee; border: 1px solid #ccc; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; font-weight: bold; }
+        .btn-delete { background-color: #ff5252; color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 0.8em; margin-left: 8px; }
+        .add-item-box { display: flex; gap: 8px; margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ddd; }
+        .add-item-input { flex-grow: 1; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; }
+        .loading { text-align: center; padding: 40px; color: #666; font-size: 1.2em; }
+        .slider-box { width: 40%; } /* 게이지바를 품목 이름 바로 옆에 위치시킴 */
+        .controls-box { width: 25%; display: flex; align-items: center; justify-content: flex-end; gap: 5px; }        
+        /* 💡 예시 사진 안내 영역 스타일 */
+        /* 💡 예시 이미지 크기 확대 및 스타일 */
+        .example-box {
+            margin-top: 15px;
+            padding-top: 12px;
+            border-top: 1px dashed #d0d0d0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            font-size: 0.9em;
+            color: #555;
+        }
+        .example-thumb {
+            width: 100px; /* 💡 크기를 넉넉하게 키움 */
+            height: 130px; /* 비율에 맞게 조절 */
+            object-fit: cover;
+            border-radius: 6px;
+            border: 2px solid #ccc;
+            cursor: pointer;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .example-thumb:hover {
+            transform: scale(1.05);
+            border-color: #4CAF50;
+        }
+
+        /* 💡 직접 수치 입력용 인스턴트 input 스타일 */
+        .qty-number-input {
+            width: 45px;
+            font-weight: bold;
+            font-size: 0.85em;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            text-align: center;
+            padding: 2px;
+            background: #fff;
+        }
+        .qty-number-input:focus {
+            border-color: #2196F3;
+            outline: none;
+        }
+        /* 💡 모바일 반응형 완벽 고정 스타일 (품목 추가 박스 복구) */
+        @media screen and (max-width: 600px) {
+            .item-row {
+                flex-wrap: wrap;
+                gap: 8px;
+                padding: 12px 0;
+            }
+            .item-name-box { 
+                width: 100%; 
+            }
+            .slider-box { 
+                width: 55%; 
+            }
+            .controls-box { 
+                width: 42%; 
+                display: flex; 
+                justify-content: flex-end; 
+                gap: 3px; 
+            }
+            .qty-btn {
+                width: 22px;
+                height: 22px;
+                font-size: 0.9em;
+            }
+            .qty-number-input {
+                width: 38px;
+                font-size: 0.8em;
+                padding: 1px;
+            }
+            .btn-delete {
+                padding: 3px 6px;
+                font-size: 0.75em;
+                margin-left: 4px;
+            }
+            
+            /* 💡 사라진 품목 추가 박스를 영수증 카드 내에서 확실히 하단에 배치 */
+            .receipt-card .add-item-box {
+                display: flex !important;
+                width: 100% !important;
+                margin-top: 15px !important;
+                box-sizing: border-box;
+            }
+        }
+        .undo-toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #323232;
+            color: white;
+            padding: 14px 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            z-index: 1000;
+            font-size: 0.95em;
+        }
+        .btn-undo { background-color: #ffeb3b; color: #333; border: none; padding: 6px 12px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="auth-bar">
+            <div id="user-profile" class="user-info"><span>로그인이 필요합니다.</span></div>
+            <div>
+                <button id="login-btn" class="btn-kakao-login" onclick="loginWithKakao()">💬 카카오 로그인</button>
+                <button id="logout-btn" class="btn-logout" onclick="logoutWithKakao()" style="display: none;">로그아웃</button>
+            </div>
+        </div>
+
+        <h1 style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+            <img src="https://s3.ap-northeast-2.amazonaws.com/my-refrigerator.com/logo.png" alt="Fridchef Logo" style="width: 75px; height: 75px; vertical-align: middle;">
+            냉장고 영수증 AI 분석 대시보드
+        </h1>
+
+        <div id="main-content" style="display: none;">
+            <div class="upload-card">
+                <h3>📷 새 영수증 이미지 직접 업로드</h3>
+                <div style="margin-bottom: 10px;">
+                    <label for="receipt-file" class="file-label">📁 파일 선택</label>
+                    <span id="file-name-display" style="margin-right: 15px; color: #666;">선택된 파일 없음</span>
+                    <input type="file" id="receipt-file" accept="image/*" onchange="handleFileSelect(this)">
+                    <button id="upload-btn" class="btn-upload" onclick="uploadReceipt()" disabled>영수증 업로드 & AI 분석</button>
+                </div>
+                <div id="status-msg"></div>
+
+                <!-- 💡 예시 사진 추가 영역 -->
+                <div class="example-box">
+                    <span>💡 올바른 영수증 예시:</span>
+                    <!-- 영수증이 전체적으로 잘 나오고 글자가 선명한 사진 예시 (원하시는 이미지 주소나 로컬 경로로 변경 가능) -->
+                    <img src="https://s3.ap-northeast-2.amazonaws.com/my-refrigerator.com/test2.png" class="example-thumb" alt="영수증 예시" title="이런 형태의 전체가 다 나온 영수증이 인식률이 좋습니다!" onclick="window.open(this.src, '_blank')">
+                    <span style="font-size: 0.8em; color: #888; text-align: left;">
+                        • 품목과 수량이 잘 보이게 찍어주세요.<br>• 흐리거나 잘린 사진은 인식이 안 될 수 있어요.
+                    </span>
+                </div>
+            </div>
+
+            <!-- 🍳 AI 셰프 챗봇 섹션 -->
+            <div class="receipt-card" style="background: #e8f5e9; border: 1px solid #c8e6c9;">
+                <h3>🍳 냉장고 파먹기 AI 셰프</h3>
+                <p style="color: #555; font-size: 0.9em;">등록된 재료를 조합해 맛있는 요리를 추천해 드립니다!</p>
+                <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                    <input type="text" id="chatbot-user-msg" class="add-item-input" placeholder="예: 밥은 있고 뭐해먹지?" style="background: white;">
+                    <button class="btn-upload" onclick="askRecipeChatbot()" style="background-color: #2e7d32;">추천받기</button>
+                </div>
+                <div id="chatbot-reply-box" style="background: white; padding: 12px; border-radius: 6px; display: none; white-space: pre-wrap; font-size: 0.95em;"></div>
+            </div>
+
+            <div class="header-bar">
+                <h2>영수증 목록 및 식재료</h2>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <!-- 💡 정렬 선택 드롭다운 메뉴 -->
+                    <select id="sort-select" onchange="changeSortOrder()" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #ccc; font-weight: bold; background: white; cursor: pointer;">
+                        <option value="desc">🔽 최신순</option>
+                        <option value="asc">🔼 오래된순</option>
+                    </select>
+                    <button class="btn-refresh" onclick="fetchReceipts()">🔄 목록 새로고침</button>
+                </div>
+            </div>
+
+            <div id="receipts-container">
+                <div class="loading">데이터를 불러오는 중입니다...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 삭제 되돌리기 토스트 팝업 -->
+    <div id="undo-toast" class="undo-toast" style="display: none;">
+        <span id="undo-msg">항목이 삭제되었습니다.</span>
+        <button class="btn-undo" onclick="undoDelete()">↩️ 되돌리기</button>
+    </div>
+
+    <script>
+        const JAVASCRIPT_KEY = '6aa07a0fee8c30251f272ee9c37eee09';
+        const API_URL = 'https://laytijnn56.execute-api.ap-northeast-2.amazonaws.com';
+        const REDIRECT_URI = window.location.origin;
+
+        if (typeof Kakao !== 'undefined' && !Kakao.isInitialized()) {
+            Kakao.init(JAVASCRIPT_KEY);
+        }
+
+        let selectedFile = null;
+        let receiptsData = [];
+        let currentUserId = null;
+
+        let pendingDeleteTimer = null;
+        let pendingDeleteData = null;
+
+        window.onload = function() {
+            handleAuthRedirect();
+        };
+
+        function loginWithKakao() {
+            Kakao.Auth.authorize({ redirectUri: REDIRECT_URI });
+        }
+
+        async function handleAuthRedirect() {
+            const code = new URLSearchParams(window.location.search).get('code');
+            if (code) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+                try {
+                    const response = await fetch('https://kauth.kakao.com/oauth/token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8' },
+                        body: new URLSearchParams({
+                            grant_type: 'authorization_code',
+                            client_id: JAVASCRIPT_KEY,
+                            redirect_uri: REDIRECT_URI,
+                            code: code
+                        })
+                    });
+                    const data = await response.json();
+                    if (data.access_token) {
+                        Kakao.Auth.setAccessToken(data.access_token);
+                        localStorage.setItem('kakao_access_token', data.access_token);
+                        await fetchKakaoProfile();
+                    } else { checkLoginStatus(); }
+                } catch (err) { checkLoginStatus(); }
+            } else { checkLoginStatus(); }
+        }
+
+        async function checkLoginStatus() {
+            const savedToken = localStorage.getItem('kakao_access_token');
+            if (savedToken) {
+                Kakao.Auth.setAccessToken(savedToken);
+                await fetchKakaoProfile();
+            } else if (Kakao.Auth.getAccessToken()) {
+                await fetchKakaoProfile();
+            } else {
+                showLoggedOutUI();
+            }
+        }
+
+        function fetchKakaoProfile() {
+            return Kakao.API.request({ url: '/v2/user/me' })
+            .then(function(response) {
+                currentUserId = "kakao_" + response.id;
+                const nickname = response.kakao_account?.profile?.nickname || response.properties?.nickname || '사용자';
+                const profileImg = response.kakao_account?.profile?.profile_image_url || response.properties?.profile_image || null;
+                showLoggedInUI(nickname, profileImg);
+                
+                // 로그인 직후에만 최초 초기화 플래그(true) 전달
+                fetchReceipts(true);
+            })
+            .catch(function(error) { logoutWithKakao(); });
+        }
+
+        function showLoggedInUI(nickname, profileImg) {
+            const avatarHtml = profileImg ? `<img src="${profileImg}" class="user-avatar" alt="profile">` : `<span>👤</span>`;
+            document.getElementById('user-profile').innerHTML = `${avatarHtml} <span>${nickname}님 환영합니다!</span>`;
+            document.getElementById('login-btn').style.display = 'none';
+            document.getElementById('logout-btn').style.display = 'block';
+            document.getElementById('main-content').style.display = 'block';
+        }
+
+        function showLoggedOutUI() {
+            currentUserId = null;
+            document.getElementById('user-profile').innerText = '로그인이 필요합니다.';
+            document.getElementById('login-btn').style.display = 'flex';
+            document.getElementById('logout-btn').style.display = 'none';
+            document.getElementById('main-content').style.display = 'none';
+        }
+
+        function logoutWithKakao() {
+            localStorage.removeItem('kakao_access_token');
+            if (Kakao.Auth.getAccessToken()) {
+                Kakao.Auth.logout().then(() => showLoggedOutUI()).catch(() => showLoggedOutUI());
+            } else { showLoggedOutUI(); }
+        }
+
+        function handleFileSelect(input) {
+            if (input.files && input.files[0]) {
+                selectedFile = input.files[0];
+                document.getElementById('file-name-display').innerText = selectedFile.name;
+                document.getElementById('upload-btn').disabled = false;
+            }
+        }
+
+        async function uploadReceipt() {
+            if (!selectedFile || !currentUserId) return;
+            const statusMsg = document.getElementById('status-msg');
+            const uploadBtn = document.getElementById('upload-btn');
+            
+            try {
+                uploadBtn.disabled = true;
+                statusMsg.innerText = '1/3단계: 업로드 URL 요청 중...';
+
+                const urlResponse = await fetch(`${API_URL}/upload-url?userId=${encodeURIComponent(currentUserId)}`);
+                const urlData = await urlResponse.json();
+                if (!urlData.uploadUrl) throw new Error('업로드 URL 발급 실패');
+
+                statusMsg.innerText = '2/3단계: S3 이미지 전송 중...';
+                const uploadResponse = await fetch(urlData.uploadUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'image/jpeg',
+                        'x-amz-meta-userid': currentUserId,
+                        'x-amz-meta-receiptid': urlData.receiptId
+                    },
+                    body: selectedFile
+                });
+                if (!uploadResponse.ok) throw new Error('S3 업로드 실패');
+
+                statusMsg.innerText = '3/3단계: Vision AI 분석 중... (약 8초 소요)';
+                setTimeout(() => {
+                    statusMsg.innerText = '✅ 분석 완료!';
+                    document.getElementById('receipt-file').value = '';
+                    document.getElementById('file-name-display').innerText = '선택된 파일 없음';
+                    selectedFile = null;
+                    fetchReceipts(false);
+                }, 8000);
+            } catch (error) {
+                statusMsg.innerText = '❌ 오류: ' + error.message;
+                uploadBtn.disabled = false;
+            }
+        }
+
+        async function fetchReceipts(isLoginInit = false) {
+            if (!currentUserId) return;
+            const container = document.getElementById('receipts-container');
+            try {
+                const response = await fetch(`${API_URL}?userId=${encodeURIComponent(currentUserId)}&_t=${new Date().getTime()}`);
+                if (!response.ok) throw new Error('조회 오류');
+                const data = await response.json();
+                
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<div class="loading">등록된 영수증이 없습니다.</div>';
+                    return;
+                }
+
+                // 💡 1. 최신 날짜순으로 정렬 (createdAt 기준 내림차순)
+                data.sort((a, b) => {
+                    const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                    const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                    return timeB - timeA; 
+                });
+
+                receiptsData = data.map(receipt => {
+                    let items = [];
+                    try {
+                        if (typeof receipt.aiResult === 'string') items = JSON.parse(receipt.aiResult);
+                        else if (Array.isArray(receipt.aiResult)) items = receipt.aiResult;
+                    } catch (e) {}
+                    
+                    items = items.map(item => {
+                        let qty = parseFloat(item.quantity);
+                        if (isNaN(qty) || qty <= 0) qty = 1.0;
+                        qty = Math.round(qty * 10) / 10;
+                        
+                        let maxQty = parseFloat(item.maxQuantity);
+                        if (isNaN(maxQty) || maxQty < qty) {
+                            maxQty = Math.max(qty, 1.0);
+                        }
+
+                        if (isLoginInit) {
+                            maxQty = qty;
+                        }
+
+                        return {
+                            ...item,
+                            quantity: qty,
+                            maxQuantity: maxQty
+                        };
+                    });
+
+                    // 💡 2. createdAt 데이터 함께 반환하도록 객체에 포함
+                    return { 
+                        receiptId: receipt.receiptId, 
+                        status: receipt.status || 'COMPLETED', 
+                        createdAt: receipt.createdAt, 
+                        items: items 
+                    };
+                });
+                sortAndRender();
+            } catch (error) {
+                container.innerHTML = `<div class="loading" style="color:red;">오류: ${error.message}</div>`;
+            }
+        }
+
+        function renderCards() {
+            const container = document.getElementById('receipts-container');
+            container.innerHTML = receiptsData.map((receipt, rIdx) => {
+                // 💡 서버에서 받아온 createdAt을 보기 좋은 한국식 날짜로 변환 (없으면 '날짜 미표기')
+                const dateStr = receipt.createdAt ? new Date(receipt.createdAt).toLocaleDateString('ko-KR', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                }) : '날짜 미표기';
+
+                return `
+                <div class="receipt-card">
+                    <div class="receipt-header">
+                        <div>
+                            <span style="font-weight:bold; margin-right: 8px;">🧾 영수증 #${rIdx + 1}</span>
+                            <span style="color:#777; font-size:0.85em;">(${dateStr})</span>
+                        </div>
+                        <span style="background:#e8f5e9; color:#2e7d32; padding:2px 8px; border-radius:10px; font-size:0.85em;">${receipt.status}</span>
+                    </div>
+                    <ul style="list-style:none; padding:0; margin:0;">
+                        ${(receipt.items || []).map((item, iIdx) => {
+                            const currentQty = parseFloat(item.quantity) || 1.0;
+                            const maxQty = Math.max(parseFloat(item.maxQuantity) || currentQty, currentQty, 1.0);
+                            return `
+                            <li class="item-row">
+                                <div class="item-name-box">
+                                    <input type="text" class="item-name-input" value="${item.name || ''}" onchange="updateItemName(${rIdx}, ${iIdx}, this.value)">
+                                    <span class="category-tag">${item.category || '기타'}</span>
+                                </div>
+                                <div class="slider-box">
+                                    <!-- 💡 1을 지날 때 간섭을 막기 위해 max 값을 실시간으로 maxQty와 동기화 -->
+                                    <input type="range" id="range-${rIdx}-${iIdx}" min="0" max="${maxQty}" step="0.1" value="${currentQty}" 
+                                        style="width: 100%; height: 4px; cursor: pointer;" 
+                                        oninput="onSliderInput(${rIdx}, ${iIdx}, this.value)"
+                                        onchange="updateSliderQuantity(${rIdx}, ${iIdx}, this.value)">
+                                </div>
+                                <div class="controls-box">
+                                    <button class="qty-btn" onclick="updateQuantity(${rIdx}, ${iIdx}, -1.0)">-</button>
+                                    <input type="number" step="0.1" id="num-${rIdx}-${iIdx}" class="qty-number-input" value="${currentQty.toFixed(1)}" 
+                                        onchange="updateDirectInput(${rIdx}, ${iIdx}, this.value)">
+                                    <button class="qty-btn" onclick="updateQuantity(${rIdx}, ${iIdx}, 1.0)">+</button>
+                                    <button class="btn-delete" onclick="deleteItem(${rIdx}, ${iIdx})">삭제</button>
+                                </div>
+                            </li>`;
+                        }).join('')}
+                    </ul>
+                    
+                    <!-- 💡 영수증 제일 아래에 품목을 적고 추가할 수 있는 박스 -->
+                    <div class="add-item-box">
+                        <input type="text" id="new-item-name-${rIdx}" class="add-item-input" placeholder="누락된 식재료 추가...">
+                        <button class="btn-upload" onclick="addItem(${rIdx})" style="padding:6px 12px; font-size:13px;">추가</button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        async function saveToDatabase(receiptIdx) {
+            const receipt = receiptsData[receiptIdx];
+            if (!receipt) return;
+            try {
+                await fetch(`${API_URL}/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: currentUserId, receiptId: receipt.receiptId, aiResult: receipt.items })
+                });
+                fetchReceipts(false);
+            } catch (err) { alert('저장 중 오류 발생'); }
+        }
+
+        async function updateItemName(rIdx, iIdx, newName) {
+            if (!newName.trim()) return;
+            receiptsData[rIdx].items[iIdx].name = newName.trim();
+            await saveToDatabase(rIdx);
+        }
+
+        // 💡 슬라이더 드래그 중 실시간 UI 반응 (oninput)
+        function onSliderInput(rIdx, iIdx, val) {
+            const qty = Math.round(parseFloat(val) * 10) / 10;
+            receiptsData[rIdx].items[iIdx].quantity = qty;
+            
+            const maxQty = Math.max(parseFloat(receiptsData[rIdx].items[iIdx].maxQuantity) || qty, qty, 1.0);
+            
+            // 💡 [핵심 추가] 브라우저가 슬라이더 범위를 헷갈리지 않도록 max 값을 실시간으로 확실하게 고정/동기화
+            const sliderEl = document.getElementById(`range-${rIdx}-${iIdx}`);
+            if (sliderEl) {
+                sliderEl.max = maxQty;
+            }
+
+            const percent = maxQty > 0 ? Math.min(Math.round((qty / maxQty) * 100), 100) : 100;
+            
+            // DOM을 통째로 리렌더링하지 않고 해당 요소만 즉시 갱신하여 부드럽게 연동
+            const percentEl = document.getElementById(`percent-${rIdx}-${iIdx}`);
+            const numEl = document.getElementById(`num-${rIdx}-${iIdx}`);
+            if (percentEl) percentEl.innerText = `${percent}%`;
+            if (numEl) numEl.value = qty.toFixed(1);
+        }
+
+        // 💡 슬라이더 손가락을 뗄 때 서버 저장 (onchange)
+        async function updateSliderQuantity(rIdx, iIdx, newQty) {
+            const qty = Math.round(parseFloat(newQty) * 10) / 10;
+            let item = receiptsData[rIdx].items[iIdx];
+
+            if (qty <= 0.05) {
+                deleteItem(rIdx, iIdx);
+            } else {
+                item.quantity = qty;
+                await saveToDatabase(rIdx);
+            }
+        }
+
+        // 💡 수치를 직접 키보드로 입력했을 때 처리
+        async function updateDirectInput(rIdx, iIdx, val) {
+            let qty = Math.round(parseFloat(val) * 10) / 10;
+            let item = receiptsData[rIdx].items[iIdx];
+
+            if (isNaN(qty) || qty <= 0.05) {
+                deleteItem(rIdx, iIdx);
+            } else {
+                item.quantity = qty;
+                if (qty > (item.maxQuantity || 1.0)) {
+                    item.maxQuantity = qty;
+                }
+                await saveToDatabase(rIdx);
+            }
+        }
+
+        async function updateQuantity(rIdx, iIdx, change) {
+            let item = receiptsData[rIdx].items[iIdx];
+            let current = parseFloat(item.quantity) || 1.0;
+            let qty = Math.round((current + change) * 10) / 10;
+            
+            if (qty <= 0.05) {
+                deleteItem(rIdx, iIdx);
+            } else {
+                item.quantity = qty;
+                if (qty > (item.maxQuantity || 1.0)) {
+                    item.maxQuantity = qty;
+                }
+                await saveToDatabase(rIdx);
+            }
+        }
+
+        // 💡 드롭다운에서 선택을 바꿨을 때 호출되는 함수
+        function changeSortOrder() {
+            sortAndRender();
+        }
+
+        // 💡 현재 선택된 드롭다운 값에 맞춰 receiptsData를 정렬하고 화면을 갱신하는 함수
+        function sortAndRender() {
+            const sortSelect = document.getElementById('sort-select');
+            const order = sortSelect ? sortSelect.value : 'desc';
+
+            receiptsData.sort((a, b) => {
+                const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                
+                // desc면 최신순(큰게 위로), asc면 오래된순(작은게 위로)
+                return order === 'desc' ? timeB - timeA : timeA - timeB;
+            });
+
+            renderCards();
+        }
+// 💡 여러 개가 연속으로 삭제되어도 안전하게 처리하기 위한 다중 삭제 관리 배열
+        let deleteQueue = []; // 삭제 대기 중인 항목들을 담는 배열
+        let globalDeleteTimer = null; // 공용 토스트 타이머
+
+        function deleteItem(rIdx, iIdx) {
+            const item = receiptsData[rIdx].items[iIdx];
+            
+            // 1. 화면 데이터(목록)에서 즉시 제거하고 렌더링
+            receiptsData[rIdx].items.splice(iIdx, 1);
+            renderCards();
+
+            // 2. 삭제 대기 큐에 추가 (확정 저장을 위한 인덱스와 아이템 정보 저장)
+            const deleteObj = { rIdx: rIdx, item: { ...item } };
+            deleteQueue.push(deleteObj);
+
+            // 3. 토스트 팝업 및 타이머 관리 (가장 최근에 삭제된 항목 기준)
+            const toast = document.getElementById('undo-toast');
+            document.getElementById('undo-msg').innerText = `'${item.name}' 항목이 삭제되었습니다.`;
+            toast.style.display = 'flex';
+
+            // 기존 타이머가 돌고 있었다면 초기화 후 5초 재시작 (마지막 삭제 기준 5초 유지)
+            if (globalDeleteTimer) {
+                clearTimeout(globalDeleteTimer);
+            }
+
+            globalDeleteTimer = setTimeout(() => {
+                commitAllDeletes();
+            }, 5000);
+        }
+
+        // 💡 되돌리기 버튼을 눌렀을 때 (가장 최근에 삭제된 항목을 부활시킴)
+        function undoDelete() {
+            if (deleteQueue.length === 0) return;
+
+            // 가장 최근에 삭제된 항목을 큐에서 꺼냄
+            const lastDeleted = deleteQueue.pop();
+            
+            // 원래 있던 영수증 데이터의 맨 뒤나 적절한 위치에 복구 (여기서는 배열 끝에 푸시 또는 원래 복원을 위해 영수증에 다시 추가)
+            if (receiptsData[lastDeleted.rIdx]) {
+                receiptsData[lastDeleted.rIdx].items.push(lastDeleted.item);
+                renderCards();
+            }
+
+            // 만약 대기 중인 삭제 건이 더 이상 없다면 토스트 숨김 및 타이머 종료
+            if (deleteQueue.length === 0) {
+                clearTimeout(globalDeleteTimer);
+                globalDeleteTimer = null;
+                document.getElementById('undo-toast').style.display = 'none';
+            } else {
+                // 아직 다른 삭제 건이 남아있다면 다음으로 최근인 항목으로 메시지 변경
+                const nextItem = deleteQueue[deleteQueue.length - 1];
+                document.getElementById('undo-msg').innerText = `'${nextItem.item.name}' 항목이 삭제되었습니다.`;
+            }
+        }
+
+        // 💡 5초가 지나거나 다른 작업으로 확정될 때 큐에 쌓인 모든 삭제를 서버에 반영
+        async function commitAllDeletes() {
+            if (deleteQueue.length === 0) return;
+            
+            // 대기 중인 모든 영수증 인덱스들을 모아서 각각 서버 저장 실행
+            const targetReceiptIndexes = [...new Set(deleteQueue.map(d => d.rIdx))];
+            
+            deleteQueue = []; // 큐 비우기
+            globalDeleteTimer = null;
+            document.getElementById('undo-toast').style.display = 'none';
+
+            // 변경된 영수증들 각각 서버에 반영
+            for (const rIdx of targetReceiptIndexes) {
+                await saveToDatabase(rIdx);
+            }
+        }
+
+        async function addItem(rIdx) {
+            const input = document.getElementById(`new-item-name-${rIdx}`);
+            const name = input.value.trim();
+            if (!name) return;
+            receiptsData[rIdx].items.push({ name: name, quantity: 1.0, maxQuantity: 1.0, category: '기타' });
+            input.value = '';
+            await saveToDatabase(rIdx);
+        }
+
+        // 🍳 AI 챗봇 호출 함수 (레시피 추천 전용)
+        async function askRecipeChatbot() {
+            if (!currentUserId) { alert('로그인이 필요합니다.'); return; }
+            let allIngredients = [];
+            
+            receiptsData.forEach(r => { 
+                if (r.items) {
+                    r.items.forEach(item => {
+                        allIngredients.push({
+                            name: item.name,
+                            category: item.category,
+                            quantity: item.quantity || 1.0
+                        });
+                    });
+                }
+            });
+
+            if (allIngredients.length === 0) { alert('등록된 식재료가 없습니다!'); return; }
+
+            const replyBox = document.getElementById('chatbot-reply-box');
+            replyBox.style.display = 'block';
+            replyBox.innerHTML = '👨‍🍳 셰프가 냉장고 재료를 스캔하고 있습니다...';
+
+            try {
+                const response = await fetch(`${API_URL}/chatbot`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: currentUserId,
+                        ingredients: allIngredients,
+                        message: document.getElementById('chatbot-user-msg').value
+                    })
+                });
+                const data = await response.json();
+                replyBox.innerHTML = data.reply || '추천 결과가 없습니다.';
+            } catch (error) {
+                replyBox.innerHTML = '❌ 챗봇 서버 통신 중 오류가 발생했습니다.';
+            }
+        }
+    </script>
+</body>
+</html>
