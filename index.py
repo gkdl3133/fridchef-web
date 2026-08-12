@@ -5,13 +5,14 @@ import base64
 import urllib.parse
 import urllib.request
 from datetime import datetime
+
 dynamodb = boto3.resource('dynamodb')
 s3 = boto3.client('s3')
 TABLE_NAME = os.environ.get('TABLE_NAME', 'Receipts')
 table = dynamodb.Table(TABLE_NAME)
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-# deploy test1
+
 def analyze_receipt_with_ai(bucket, key):
     # S3에서 이미지 읽기
     response = s3.get_object(Bucket=bucket, Key=key)
@@ -49,7 +50,6 @@ def analyze_receipt_with_ai(bucket, key):
         "max_tokens": 1000
     }
 
-    # urllib 사용 
     req = urllib.request.Request(
         "https://api.openai.com/v1/chat/completions",
         data=json.dumps(payload).encode("utf-8"),
@@ -75,20 +75,36 @@ def lambda_handler(event, context):
             bucket = record['s3']['bucket']['name']
             key = urllib.parse.unquote_plus(record['s3']['object']['key'])
             
+            print(f"Processing S3 Key: {key}") # 디버깅용 로그
+
             key_parts = key.split('/')
-            user_id = key_parts[1] if len(key_parts) >= 3 else 'anonymous'
-            receipt_id = key_parts[2].replace('.jpg', '') if len(key_parts) >= 3 else key
+            
+            # 💡 [핵심 수정] S3 경로 구조가 어떻게 들어오든 안전하게 파싱하도록 개선
+            # 예: 'uploads/kakao_123/uuid.jpg' 이거나 'kakao_123/uuid.jpg' 모두 대응
+            user_id = 'anonymous'
+            receipt_id = key.replace('/', '_').replace('.jpg', '') # 최후의 보완책
+
+            if 'uploads' in key_parts and len(key_parts) >= 3:
+                # 'uploads/유저ID/고유ID.jpg' 형태인 경우
+                user_idx = key_parts.index('uploads') + 1
+                if len(key_parts) > user_idx:
+                    user_id = key_parts[user_idx]
+                if len(key_parts) > user_idx + 1:
+                    receipt_id = key_parts[user_idx + 1].replace('.jpg', '')
+            elif len(key_parts) >= 2:
+                # '유저ID/고유ID.jpg' 형태인 경우
+                user_id = key_parts[0]
+                receipt_id = key_parts[1].replace('.jpg', '')
 
             ai_result = analyze_receipt_with_ai(bucket, key)
 
-            # 💡 DynamoDB 저장 시 createdAt 추가
             table.put_item(
                 Item={
                     'userId': user_id,
                     'receiptId': receipt_id,
                     'status': 'COMPLETED',
                     'aiResult': json.dumps(ai_result, ensure_ascii=False),
-                    'createdAt': datetime.now().isoformat()  # 💡 현재 시간을 ISO 형식으로 저장
+                    'createdAt': datetime.now().isoformat()
                 }
             )
 
