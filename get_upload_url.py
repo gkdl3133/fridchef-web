@@ -5,7 +5,7 @@ import os
 dynamodb = boto3.resource('dynamodb')
 TABLE_NAME = os.environ.get('TABLE_NAME', 'Receipts')
 table = dynamodb.Table(TABLE_NAME)
-
+# deploy test1
 def lambda_handler(event, context):
     headers = {
         'Access-Control-Allow-Origin': '*',

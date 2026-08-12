@@ -1,9 +1,9 @@
-name: Deploy to S3 and CloudFront
+name: Deploy Frontend and Backend Components
 
 on:
   push:
     branches:
-      - main  # main 브랜치에 코드가 푸시될 때 자동 실행
+      - main
 
 jobs:
   deploy:
@@ -12,21 +12,71 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Deploy to S3
-        uses: jakejarvis/s3-sync-action@master
-        with:
-          args: --delete
+      # -------------------------------------------------------------------------
+      # 1. 프론트엔드 배포: index.html 단 하나만 S3로 복사
+      # -------------------------------------------------------------------------
+      - name: Deploy index.html to S3
+        run: |
+          aws s3 cp index.html s3://${{ secrets.AWS_S3_BUCKET }}/index.html
         env:
-          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: 'ap-northeast-2' # 본인의 S3/CloudFront 리전에 맞게 수정
+          AWS_DEFAULT_REGION: 'ap-northeast-2'
 
       - name: Invalidate CloudFront
         uses: chetan/invalidate-cloudfront-action@master
         env:
           DISTRIBUTION: ${{ secrets.DISTRIBUTION_ID }}
-          PATHS: '/*'
+          PATHS: '/index.html' # index.html만 캐시 무효화
           AWS_REGION: 'ap-northeast-2'
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      # -------------------------------------------------------------------------
+      # 2. 백엔드 배포: 각 파이썬 파일을 개별 람다에 매핑
+      # -------------------------------------------------------------------------
+      # 람다 1번 배포
+      - name: Zip and Deploy get_receipts Lambda
+        run: |
+          zip get_receipts.zip get_receipts.py
+          # appleboy 액션 대신 AWS CLI를 바로 사용하면 더 빠르고 간단합니다
+          aws lambda update-function-code --function-name 'get-receipts-list' --zip-file fileb://get_receipts.zip --region ap-northeast-2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      # 람다 2번 배포
+      - name: Zip and Deploy get_upload_url Lambda
+        run: |
+          zip get_upload_url.zip get_upload_url.py
+          aws lambda update-function-code --function-name 'get-receipt-upload-url' --zip-file fileb://get_upload_url.zip --region ap-northeast-2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      # 람다 3번 배포
+      - name: Zip and Deploy recipe_chatbot Lambda
+        run: |
+          zip recipe_chatbot.zip recipe_chatbot.py
+          aws lambda update-function-code --function-name 'recipe-chatbot' --zip-file fileb://recipe_chatbot.zip --region ap-northeast-2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      # 람다 4번 배포
+      - name: Zip and Deploy update_receipt Lambda
+        run: |
+          zip update_receipt.zip update_receipt.py
+          aws lambda update-function-code --function-name 'update-receipt-items' --zip-file fileb://update_receipt.zip --region ap-northeast-2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          
+      # 람다 5번 배포
+      - name: Zip and Deploy index Lambda
+        run: |
+          zip index.zip index.py
+          aws lambda update-function-code --function-name 'process-receipt-ai' --zip-file fileb://index.zip --region ap-northeast-2
+        env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
