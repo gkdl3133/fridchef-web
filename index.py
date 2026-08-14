@@ -11,9 +11,7 @@ s3 = boto3.client('s3')
 TABLE_NAME = os.environ.get('TABLE_NAME', 'Receipts')
 table = dynamodb.Table(TABLE_NAME)
 
-#집계 테이블 연결 추가
-STATS_TABLE_NAME = os.environ.get('STATS_TABLE_NAME', 'UserItemStatistics')
-stats_table = dynamodb.Table(STATS_TABLE_NAME)
+
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 # deploy test
@@ -111,29 +109,7 @@ def lambda_handler(event, context):
                     'createdAt': datetime.now().isoformat()
                 }
             )
-            current_date_str = datetime.now().strftime('%Y-%m-%d')
-                        for ing in ai_result:
-                            item_name = str(ing.get('name', '')).strip()
-                            category = str(ing.get('category', '기타')).strip()
-                            if not item_name:
-                                continue
-                            
-                            try:
-                                stats_table.update_item(
-                                    Key={
-                                        'userId': user_id,
-                                        'itemName': item_name
-                                    },
-                                    UpdateExpression="ADD frequency :inc SET lastPurchasedDate = :date, category = :cat",
-                                    ExpressionAttributeValues={
-                                        ':inc': 1,
-                                        ':date': current_date_str,
-                                        ':cat': category
-                                    }
-                                )
-                            except Exception as update_err:
-                                print(f"Stats Update Error for {item_name}: {str(update_err)}")
-                                
+
         return {'statusCode': 200, 'body': json.dumps('Success')}
     except Exception as e:
         print(f"Error processing receipt: {str(e)}")
